@@ -21,7 +21,7 @@ function otimizar_pid()
     
     % Limites para os ganhos PID
     limites_min = [0.001, 0.001, 0];
-    limites_max = [5, 5, 5];
+    limites_max = [11, 11, 11];
     
     % Executa a otimização
     melhores_parametros = ga(fitness_func, 3, [], [], [], [], limites_min, limites_max, [], opts);
