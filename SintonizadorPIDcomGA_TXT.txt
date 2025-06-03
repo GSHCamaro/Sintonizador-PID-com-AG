@@ -1,26 +1,27 @@
 % É necessário a simulação, no Simulink, da planta sem nenhum tipo de controle para rodar o código abaixo
 function otimizar_pid()
     % Carrega o modelo Simulink
-    modelo_planta = 'modelo_planta'; % Substitua pelo nome real do seu modelo no Simulink
+    modelo_planta = 'modelo_planta'; % Substitua pelo nome real do seu modelo
     load_system(modelo_planta);
     
     % Define a função de avaliação para o Algoritmo Genético
     fitness_func = @(x) avaliar_pid(x(1), x(2), x(3), modelo_planta);
     
-     % Define a população inicial como [1 1 0]
-    populacao_inicial = [1,1,0];  % linha única com Kp=1, Ki=1, Kd=1
+     % Define a população inicial como [1 1 1]
+    populacao_inicial = [1,0,0];  % linha única com Kp=1, Ki=1, Kd=1
 
     % Configuração do algoritmo genético
-    opts = optimoptions('ga', ...
+     opts = optimoptions('ga', ...
         'Display', 'iter', ...
         'MaxGenerations', 8, ...
         'PopulationSize', 10, ...
         'InitialPopulationMatrix', populacao_inicial, ...
-        'PlotFcn', {@gaplotbestf});
+        'PlotFcn', {@gaplotbestf}, ...
+        'OutputFcn', @salvar_media_fitness);  
     
     % Limites para os ganhos PID
     limites_min = [0.001, 0.001, 0];
-    limites_max = [11, 11, 11];
+    limites_max = [5, 5, 5];
     
     % Executa a otimização
     melhores_parametros = ga(fitness_func, 3, [], [], [], [], limites_min, limites_max, [], opts);
@@ -105,12 +106,17 @@ function nota = avaliar_pid(Kp, Ki, Kd, modelo_planta)
     if postac > 0
         pico = max(saida(1:postac));
     else
-        pico = max(saida);  % fallback se TAC não foi detectado
+        pico = max(saida);  
     end
 
     if pico > valor_final_entrada
         over = (pico - valor_final_entrada) / valor_final_entrada * 100;
-        fprintf('Overshoot: %.2f%%\n', over);
+        if over > 100
+            over = 100;
+            fprintf('Overshoot: %.2f%%\n', over);
+        else 
+            fprintf('Overshoot: %.2f%%\n', over);
+        end
     else
         over = 0;
         fprintf('Não há Overshoot\n');
@@ -122,12 +128,22 @@ function nota = avaliar_pid(Kp, Ki, Kd, modelo_planta)
     erro_tolerancia = 1e-5;
 
     if abs(erro) > erro_tolerancia
-        if erro > 0
-            fprintf('Erro para baixo em regime: %.4f\n', erro);
+        if abs(erro) > 10
+            erro = 10;
+            if erro > 0
+                fprintf('Erro para baixo em regime: %.4f\n', erro);
+            else
+                fprintf('Erro para cima em regime: %.4f\n', erro);
+            end
         else
-            fprintf('Erro para cima em regime: %.4f\n', erro);
+            if erro > 0
+                fprintf('Erro para baixo em regime: %.4f\n', erro);
+            else
+                fprintf('Erro para cima em regime: %.4f\n', erro);
+            end
         end
     else
+        erro = 0;
         fprintf('Erro em regime desprezível (≈0)\n');
     end
 
@@ -136,13 +152,35 @@ function nota = avaliar_pid(Kp, Ki, Kd, modelo_planta)
     meta_TAC  = 1.0;   % segundos
     meta_over = 0.0;   % porcentagem
     meta_erro = 0.0;   % ideal sem erro estacionário
-    
+
     % Nota baseada na soma das distâncias às metas
-    nota = 0.4*(abs(erro - meta_erro)) + 0.3*(abs(TAC - meta_TAC)) + 0.3*(abs(over - meta_over));
+    nota = 0.05*(abs(erro - meta_erro)) + 0.35*(abs(TAC - meta_TAC)) + 0.60*(abs(over - meta_over));
 end
 
+function [state, options, optchanged] = salvar_media_fitness(options, state, flag)
+    persistent dados_geracoes;
+    optchanged = false;
+
+    if strcmp(flag, 'init')
+        dados_geracoes = [];  % zera os dados no início
+
+    elseif strcmp(flag, 'iter')
+        media_geracao = mean(state.Score);
+        melhor_geracao = min(state.Score);
+        dados_geracoes(end+1, :) = [melhor_geracao, media_geracao];
+
+    elseif strcmp(flag, 'done')
+        nome_arquivo = 'fitness_geracoes.xlsx';
+        cabecalho = {'Geracao', 'MelhorNota', 'MediaNota'};
+        geracoes = (1:size(dados_geracoes,1))';
+        tabela = [geracoes, dados_geracoes];
+        xlswrite(nome_arquivo, [cabecalho; num2cell(tabela)]);
+
+        fprintf('\n✅ Dados de fitness salvos em %s\n', nome_arquivo);
+
+    end
+end
 
 % Executa a otimização automaticamente
 otimizar_pid();
-
 
