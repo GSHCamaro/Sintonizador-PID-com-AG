@@ -7,7 +7,7 @@ function otimizar_pid()
     % Define a função de avaliação para o Algoritmo Genético
     fitness_func = @(x) avaliar_pid(x(1), x(2), x(3), modelo_planta);
     
-     % Define a população inicial como [1 1 1]
+     % Define a população inicial como [1 0 0]
     populacao_inicial = [1,0,0];  % linha única com Kp=1, Ki=1, Kd=1
 
     % Configuração do algoritmo genético
